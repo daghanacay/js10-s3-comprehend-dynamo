@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  
+  Sample SAM Template for s3-sentiment-dynamo function
+  
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 120
+
+Parameters:
+  InputS3BucketName:
+    Default: s3-lambda-dynamo-input-bucket-daghan2
+    MinLength: 3
+    Type: String
+  DynamoDBTableName:
+    Default: s3-lambda-dynamo-sentiment
+    MinLength: 3
+    Type: String
+Resources:
+  AddToDynamoLambdaFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: src/
+      Handler: app.lambdaHandler
+      Runtime: nodejs10.x
+      Events:
+        FileUploadTrigger:
+          Type: S3 # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties: 
+            Bucket: !Ref InputS3Bucket
+            Events: s3:ObjectCreated:*
+      Policies:
+      - ComprehendBasicAccessPolicy: {}
+      - S3ReadPolicy:
+          BucketName: !Ref InputS3BucketName
+      - DynamoDBCrudPolicy:
+          TableName: !Ref DynamoDBTableName
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref DynamoDBTableName
+
+ 
+  InputS3Bucket: # Create input buckets
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref InputS3BucketName
+  
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref DynamoDBTableName
+      AttributeDefinitions:
+        -
+          AttributeName: !Sub "${DynamoDBTableName}_hash"
+          AttributeType: "S"
+        -
+          AttributeName: !Sub "${DynamoDBTableName}_range"
+          AttributeType: "S"
+      KeySchema:
+        -
+          AttributeName: !Sub "${DynamoDBTableName}_hash"
+          KeyType: "HASH"
+        -
+          AttributeName: !Sub "${DynamoDBTableName}_range"
+          KeyType: "RANGE"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+    
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  LambdaFunctionARN:
+    Description: "Lambda Function ARN"
+    Value: !GetAtt AddToDynamoLambdaFunction.Arn
+  LambdaFunctionRole:
+    Description: "Implicit IAM Role created for the lambda function"
+    Value: !GetAtt AddToDynamoLambdaFunctionRole.Arn
+  InputS3Bucket:
+    Description: "Input Bucket name"
+    Value: !Ref InputS3Bucket
+    Export:
+      Name: SentimentInputS3BucketNameExport
+  DynamoDBTableArn:
+    Value: !GetAtt DynamoDBTable.Arn
+    Description: The ARN of your DynamoDB Table
+  DynamoDBTableStreamArn:
+    Value: !GetAtt DynamoDBTable.StreamArn
+    Description: The ARN of your DynamoDB Table Stream
+  InputS3BucketARN:
+    Description: "Input Bucket ARN"
+    Value: !GetAtt InputS3Bucket.Arn
+    # exprot this so it can be used externally
+    Export: 
+      Name: SentimentInputBucketArnExport 
+  
+  
